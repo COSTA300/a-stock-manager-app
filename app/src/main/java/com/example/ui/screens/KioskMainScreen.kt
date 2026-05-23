@@ -10,6 +10,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -298,8 +300,8 @@ fun DashboardTab(
                         modifier = Modifier.weight(1f)
                     )
                     MetricCard(
-                        title = "Outlet Sales",
-                        value = "$${String.format(Locale.US, "%.2f", metrics.totalRevenue)}",
+                        title = "Today's Sales",
+                        value = "$${String.format(Locale.US, "%.2f", metrics.todayRevenue)}",
                         color = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.weight(1f)
                     )
@@ -342,7 +344,7 @@ fun DashboardTab(
                             )
                         }
                     } else {
-                        val brands = listOf("Spectra", "Samsung", "Vivo", "Apple", "Other")
+                        val brands = inStockUnits.map { it.brand }.filter { it.isNotBlank() }.distinct().sorted()
                         brands.forEach { brand ->
                             val count = brandCountsInStock[brand]?.size ?: 0
                             val faction = if (inStockUnits.isEmpty()) 0f else count.toFloat() / inStockUnits.size
@@ -365,7 +367,7 @@ fun DashboardTab(
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 LinearProgressIndicator(
-                                    progress = { faction },
+                                    progress = faction,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(8.dp)
@@ -375,6 +377,93 @@ fun DashboardTab(
                                 )
                             }
                             Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
+                }
+            }
+        }
+
+        // Everyday Sales Record (resets daily but retains everyday sales history)
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Everyday Sales Record",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.secondaryContainer)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "Total: $${String.format(Locale.US, "%.2f", metrics.totalRevenue)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    if (metrics.dailySalesHistory.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(60.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "No sales registered yet.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                        }
+                    } else {
+                        metrics.dailySalesHistory.forEach { (date, dailyRevenue) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.DateRange,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = date,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                                Text(
+                                    text = "$${String.format(Locale.US, "%.2f", dailyRevenue)}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF2ECC71)
+                                )
+                            }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                         }
                     }
                 }
@@ -463,12 +552,22 @@ fun InventoryTab(
     onSelectUnit: (StockUnit) -> Unit
 ) {
     val items by viewModel.filteredStockUnits.collectAsStateWithLifecycle()
+    val allUnits by viewModel.allStockUnits.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val activeBrandFilter by viewModel.selectedBrandFilter.collectAsStateWithLifecycle()
     val activeStatusFilter by viewModel.selectedStatusFilter.collectAsStateWithLifecycle()
 
-    val brandsList = listOf("All", "Spectra", "Samsung", "Vivo", "Apple", "Other")
+    val brandsList = remember(allUnits) {
+        val uniqueBrands = allUnits.map { it.brand }.filter { it.isNotBlank() }.distinct().sorted()
+        listOf("All") + uniqueBrands
+    }
     val statusList = listOf("All", "In Stock", "Sold", "In Repair")
+
+    LaunchedEffect(brandsList) {
+        if (activeBrandFilter != "All" && !brandsList.contains(activeBrandFilter)) {
+            viewModel.updateBrandFilter("All")
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -501,18 +600,12 @@ fun InventoryTab(
         Text("Filter by Brand:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(4.dp))
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            brandsList.take(3).forEach { brand ->
-                FilterChip(
-                    selected = activeBrandFilter == brand,
-                    onClick = { viewModel.updateBrandFilter(brand) },
-                    label = { Text(brand) },
-                    modifier = Modifier.testTag("brand_chip_$brand")
-                )
-            }
-            brandsList.drop(3).forEach { brand ->
+            brandsList.forEach { brand ->
                 FilterChip(
                     selected = activeBrandFilter == brand,
                     onClick = { viewModel.updateBrandFilter(brand) },
@@ -645,12 +738,25 @@ fun HandsetItemCard(
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "IMEI: ${unit.imei}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontFamily = FontFamily.Monospace
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "IMEI: ${unit.imei}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    unit.price?.let {
+                        Text(
+                            text = "•  $${String.format(Locale.US, "%.2f", it)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.width(8.dp))
@@ -682,19 +788,13 @@ fun IntakeTab(
     onSuccess: () -> Unit
 ) {
     var imei by remember { mutableStateOf("") }
-    var brand by remember { mutableStateOf("Spectra") }
     var model by remember { mutableStateOf("") }
+    var priceInput by remember { mutableStateOf("") }
 
     // Instant Brand Auto-Detection
     val detectedBrand = remember(imei) {
-        viewModel.identifyBrandFromImei(imei)
-    }
-
-    // Auto-update selected brand if brand is detected from IMEI
-    LaunchedEffect(detectedBrand) {
-        if (detectedBrand.isNotBlank() && detectedBrand != "Other") {
-            brand = detectedBrand
-        }
+        val detected = viewModel.identifyBrandFromImei(imei)
+        if (detected.isBlank() || detected == "Other") "Other" else detected
     }
 
     LazyColumn(
@@ -751,7 +851,7 @@ fun IntakeTab(
                         )
                         
                         // Interactive Brand Feedback as they type!
-                        if (detectedBrand.isNotBlank()) {
+                        if (detectedBrand.isNotBlank() && detectedBrand != "Other") {
                             Spacer(modifier = Modifier.height(6.dp))
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -778,39 +878,58 @@ fun IntakeTab(
                         }
                     }
 
-                    // Brand Dropdown/Select
+                    // Display brand status dynamically without manual selectors
                     Column {
                         Text(
-                            text = "Select Device Brand",
+                            text = "Device Brand Status",
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        val brands = listOf("Spectra", "Samsung", "Vivo", "Apple", "Other")
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            brands.forEach { item ->
-                                val isSelected = brand.equals(item, ignoreCase = true)
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(
-                                            if (isSelected) MaterialTheme.colorScheme.primary 
-                                            else MaterialTheme.colorScheme.surfaceVariant
-                                        )
-                                        .clickable { brand = item }
-                                        .padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center
+                        if (detectedBrand != "Other") {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = "Identified",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = item,
+                                        text = "Identified: $detectedBrand",
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                            }
+                        } else {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Help,
+                                        contentDescription = "Pending/Unidentified",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Unidentified (Awaiting Scanned IMEI)",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                     )
                                 }
                             }
@@ -835,6 +954,29 @@ fun IntakeTab(
                         )
                     }
 
+                    // Price Input Field
+                    Column {
+                        Text(
+                            text = "Standard Handset Price ($)",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = priceInput,
+                            onValueChange = { input ->
+                                if (input.isEmpty() || input.toDoubleOrNull() != null || input.all { it.isDigit() || it == '.' }) {
+                                    priceInput = input
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("intake_price_input"),
+                            placeholder = { Text("e.g. 499.00") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(8.dp))
 
                     // Receive Unit Button (Intake)
@@ -848,14 +990,17 @@ fun IntakeTab(
                                 viewModel.showMessage("Invalid input: Please type device model.")
                                 return@Button
                             }
+                            val priceValue = priceInput.toDoubleOrNull()
                             viewModel.addStockUnit(
                                 imei = imei,
-                                brand = brand,
-                                model = model
+                                brand = detectedBrand,
+                                model = model,
+                                price = priceValue
                             ) {
                                 // On Success, reset form fields
                                 imei = ""
                                 model = ""
+                                priceInput = ""
                                 onSuccess()
                             }
                         },
@@ -1044,7 +1189,7 @@ fun DeviceDetailsDialog(
     val operatorRole by viewModel.currentOperatorRole.collectAsStateWithLifecycle()
 
     // Form inputs
-    var salePriceInput by remember { mutableStateOf("") }
+    var salePriceInput by remember { mutableStateOf(unit.price?.toString() ?: "") }
     var customerNameInput by remember { mutableStateOf("") }
     var repairCenterInput by remember { mutableStateOf("") }
     var issueNotesInput by remember { mutableStateOf("") }
@@ -1116,8 +1261,18 @@ fun DeviceDetailsDialog(
                         "In Repair" -> Color(0xFFE74C3C)
                         else -> MaterialTheme.colorScheme.onSurface
                     },
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    modifier = Modifier.padding(bottom = 4.dp)
                 )
+
+                unit.price?.let {
+                    Text(
+                        text = "Intake Price: $${String.format(Locale.US, "%.2f", it)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
 
                 // Render detail subsections depending on static states
                 if (unit.status == "Sold") {

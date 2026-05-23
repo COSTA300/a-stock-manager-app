@@ -15,7 +15,9 @@ data class DashboardMetrics(
     val totalInStock: Int = 0,
     val totalSold: Int = 0,
     val totalInRepair: Int = 0,
-    val totalRevenue: Double = 0.0
+    val totalRevenue: Double = 0.0,
+    val todayRevenue: Double = 0.0,
+    val dailySalesHistory: Map<String, Double> = emptyMap()
 )
 
 class KioskViewModel(application: Application) : AndroidViewModel(application) {
@@ -77,18 +79,40 @@ class KioskViewModel(application: Application) : AndroidViewModel(application) {
         var sold = 0
         var repair = 0
         var revenue = 0.0
+        var todayRevenue = 0.0
+        
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+        val todayStr = sdf.format(java.util.Date())
+        val salesByDay = mutableMapOf<String, Double>()
         
         for (unit in stockList) {
             when (unit.status) {
                 "In Stock" -> inStock++
+                "In Repair" -> repair++
                 "Sold" -> {
                     sold++
-                    revenue += (unit.salePrice ?: 0.0)
+                    val sPrice = unit.salePrice ?: 0.0
+                    revenue += sPrice
+                    
+                    val saleTimestamp = unit.saleDate ?: unit.dateAdded
+                    val dateKey = sdf.format(java.util.Date(saleTimestamp))
+                    
+                    salesByDay[dateKey] = (salesByDay[dateKey] ?: 0.0) + sPrice
+                    
+                    if (dateKey == todayStr) {
+                        todayRevenue += sPrice
+                    }
                 }
-                "In Repair" -> repair++
             }
         }
-        DashboardMetrics(inStock, sold, repair, revenue)
+        DashboardMetrics(
+            totalInStock = inStock,
+            totalSold = sold,
+            totalInRepair = repair,
+            totalRevenue = revenue,
+            todayRevenue = todayRevenue,
+            dailySalesHistory = salesByDay.toSortedMap(reverseOrder())
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardMetrics())
 
     // Suggest brand based on IMEI TAC
@@ -99,7 +123,7 @@ class KioskViewModel(application: Application) : AndroidViewModel(application) {
             prefix.startsWith("351") || prefix.startsWith("352") || prefix.startsWith("355") -> "Samsung"
             prefix.startsWith("861") || prefix.startsWith("862") || prefix.startsWith("864") || prefix.startsWith("868") -> "Spectra"
             prefix.startsWith("353") || prefix.startsWith("356") || prefix.startsWith("359") -> "Vivo"
-            prefix.startsWith("354") || prefix.startsWith("357") || prefix.startsWith("358") -> "Apple"
+            prefix.startsWith("354") || prefix.startsWith("357") || prefix.startsWith("358") -> "Honour"
             else -> "Other"
         }
     }
@@ -129,7 +153,7 @@ class KioskViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // 1. Stock Intake (Receiving)
-    fun addStockUnit(imei: String, brand: String, model: String, onSuccess: () -> Unit) {
+    fun addStockUnit(imei: String, brand: String, model: String, price: Double?, onSuccess: () -> Unit) {
         if (imei.length != 15 || !imei.all { it.isDigit() }) {
             _uiMessage.value = "Error: IMEI must be exactly 15 digits"
             return
@@ -151,7 +175,8 @@ class KioskViewModel(application: Application) : AndroidViewModel(application) {
                 model = model,
                 status = "In Stock",
                 dateAdded = timestamp,
-                stockId = "TEMP"
+                stockId = "TEMP",
+                price = price
             )
 
             val insertedId = repository.insertStockUnit(initialUnit)
@@ -162,13 +187,14 @@ class KioskViewModel(application: Application) : AndroidViewModel(application) {
             repository.insertStockUnit(updatedUnit)
 
             // Log the intake event
+            val priceStr = price?.let { " (Price: $${String.format("%.2f", it)})" } ?: ""
             val log = AuditLog(
                 imei = imei,
                 brand = brand,
                 model = model,
                 action = "Received",
                 timestamp = timestamp,
-                remarks = "Received new handset. Stock ID: $finalStockId",
+                remarks = "Received new handset. Stock ID: $finalStockId$priceStr",
                 operatorRole = _currentOperatorRole.value
             )
             repository.insertAuditLog(log)

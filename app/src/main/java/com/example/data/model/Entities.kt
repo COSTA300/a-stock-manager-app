@@ -13,6 +13,9 @@ data class StockUnit(
     val dateAdded: Long = System.currentTimeMillis(),
     val stockId: String, // e.g. "KSM-00001" or generated serial
     
+    // Handset Price
+    val price: Double? = null,
+    
     // Sales Details
     val salePrice: Double? = null,
     val customerName: String? = null,

@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import com.example.data.model.AuditLog
 import com.example.data.model.StockUnit
 
-@Database(entities = [StockUnit::class, AuditLog::class], version = 1, exportSchema = false)
+@Database(entities = [StockUnit::class, AuditLog::class], version = 2, exportSchema = false)
 abstract class KioskDatabase : RoomDatabase() {
     abstract fun kioskDao(): KioskDao
 
@@ -22,7 +22,7 @@ abstract class KioskDatabase : RoomDatabase() {
                     KioskDatabase::class.java,
                     "kiosk_inventory_database"
                 )
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
                 INSTANCE = instance
                 instance
