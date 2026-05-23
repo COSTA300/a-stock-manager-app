@@ -1,0 +1,6 @@
+{
+  "name": "Kiosk Stock Manager",
+  "description": "Retail kiosk inventory management and phone stock tracking system with offline data persistence and audit logging.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
