@@ -187,7 +187,7 @@ class KioskViewModel(application: Application) : AndroidViewModel(application) {
             repository.insertStockUnit(updatedUnit)
 
             // Log the intake event
-            val priceStr = price?.let { " (Price: $${String.format("%.2f", it)})" } ?: ""
+            val priceStr = price?.let { " (Price: R${String.format("%.2f", it)})" } ?: ""
             val log = AuditLog(
                 imei = imei,
                 brand = brand,
@@ -233,7 +233,7 @@ class KioskViewModel(application: Application) : AndroidViewModel(application) {
                 model = unit.model,
                 action = "Sold",
                 timestamp = timestamp,
-                remarks = "Sold for $${String.format("%.2f", price)} to ${customerName.ifBlank { "Walk-in" }}. Sales log: ${remark ?: "None"}",
+                remarks = "Sold for R${String.format("%.2f", price)} to ${customerName.ifBlank { "Walk-in" }}. Sales log: ${remark ?: "None"}",
                 operatorRole = _currentOperatorRole.value
             )
             repository.insertAuditLog(log)

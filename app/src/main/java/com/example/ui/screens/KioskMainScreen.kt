@@ -301,7 +301,7 @@ fun DashboardTab(
                     )
                     MetricCard(
                         title = "Today's Sales",
-                        value = "$${String.format(Locale.US, "%.2f", metrics.todayRevenue)}",
+                        value = "R${String.format(Locale.US, "%.2f", metrics.todayRevenue)}",
                         color = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.weight(1f)
                     )
@@ -411,7 +411,7 @@ fun DashboardTab(
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = "Total: $${String.format(Locale.US, "%.2f", metrics.totalRevenue)}",
+                                text = "Total: R${String.format(Locale.US, "%.2f", metrics.totalRevenue)}",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -457,7 +457,7 @@ fun DashboardTab(
                                     )
                                 }
                                 Text(
-                                    text = "$${String.format(Locale.US, "%.2f", dailyRevenue)}",
+                                    text = "R${String.format(Locale.US, "%.2f", dailyRevenue)}",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF2ECC71)
@@ -750,7 +750,7 @@ fun HandsetItemCard(
                     )
                     unit.price?.let {
                         Text(
-                            text = "•  $${String.format(Locale.US, "%.2f", it)}",
+                            text = "•  R${String.format(Locale.US, "%.2f", it)}",
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
@@ -791,11 +791,9 @@ fun IntakeTab(
     var model by remember { mutableStateOf("") }
     var priceInput by remember { mutableStateOf("") }
 
-    // Instant Brand Auto-Detection
-    val detectedBrand = remember(imei) {
-        val detected = viewModel.identifyBrandFromImei(imei)
-        if (detected.isBlank() || detected == "Other") "Other" else detected
-    }
+    val brandingOptions = listOf("Spectra", "Samsung", "Vivo", "Honour", "Other")
+    var selectedBrand by remember { mutableStateOf("Spectra") }
+    var customBrand by remember { mutableStateOf("") }
 
     LazyColumn(
         modifier = Modifier
@@ -812,7 +810,7 @@ fun IntakeTab(
                 modifier = Modifier.fillMaxWidth()
             )
             Text(
-                text = "Provision new units securely. Auto-identifies catalog characteristics based on IMEI prefixes.",
+                text = "Provision new units securely. Choose the handset brand, model and standard pricing detail below.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth()
@@ -849,90 +847,51 @@ fun IntakeTab(
                             placeholder = { Text("Enter 15 digit IMEI") },
                             singleLine = true
                         )
-                        
-                        // Interactive Brand Feedback as they type!
-                        if (detectedBrand.isNotBlank() && detectedBrand != "Other") {
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
-                                    .padding(8.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Info,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Auto-detected brand: $detectedBrand",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                        }
                     }
 
-                    // Display brand status dynamically without manual selectors
+                    // Brand Selection Instead of Auto Detection
                     Column {
                         Text(
-                            text = "Device Brand Status",
+                            text = "Select Device Brand",
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        if (detectedBrand != "Other") {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = "Identified",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Identified: $detectedBrand",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            brandingOptions.forEach { b ->
+                                FilterChip(
+                                    selected = selectedBrand == b,
+                                    onClick = { selectedBrand = b },
+                                    label = { Text(b) },
+                                    modifier = Modifier.testTag("intake_brand_chip_$b")
+                                )
                             }
-                        } else {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Help,
-                                        contentDescription = "Pending/Unidentified",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Unidentified (Awaiting Scanned IMEI)",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                    )
-                                }
-                            }
+                        }
+                    }
+
+                    // If "Other" brand is selected, show custom brand name input
+                    if (selectedBrand == "Other") {
+                        Column {
+                            Text(
+                                text = "Custom Brand Name",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            OutlinedTextField(
+                                value = customBrand,
+                                onValueChange = { customBrand = it },
+                                modifier = Modifier.fillMaxWidth().testTag("intake_custom_brand_input"),
+                                placeholder = { Text("e.g. Apple, Xiaomi, Huawei") },
+                                singleLine = true
+                            )
                         }
                     }
 
@@ -954,10 +913,10 @@ fun IntakeTab(
                         )
                     }
 
-                    // Price Input Field
+                    // Price Input Field - South African Rands label
                     Column {
                         Text(
-                            text = "Standard Handset Price ($)",
+                            text = "Standard Handset Price (R)",
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
@@ -971,7 +930,7 @@ fun IntakeTab(
                                 }
                             },
                             modifier = Modifier.fillMaxWidth().testTag("intake_price_input"),
-                            placeholder = { Text("e.g. 499.00") },
+                            placeholder = { Text("e.g. 4999.00") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             singleLine = true
                         )
@@ -990,10 +949,15 @@ fun IntakeTab(
                                 viewModel.showMessage("Invalid input: Please type device model.")
                                 return@Button
                             }
+                            val brandToSubmit = if (selectedBrand == "Other") {
+                                customBrand.ifBlank { "Other" }
+                            } else {
+                                selectedBrand
+                            }
                             val priceValue = priceInput.toDoubleOrNull()
                             viewModel.addStockUnit(
                                 imei = imei,
-                                brand = detectedBrand,
+                                brand = brandToSubmit,
                                 model = model,
                                 price = priceValue
                             ) {
@@ -1001,6 +965,8 @@ fun IntakeTab(
                                 imei = ""
                                 model = ""
                                 priceInput = ""
+                                selectedBrand = "Spectra"
+                                customBrand = ""
                                 onSuccess()
                             }
                         },
@@ -1266,7 +1232,7 @@ fun DeviceDetailsDialog(
 
                 unit.price?.let {
                     Text(
-                        text = "Intake Price: $${String.format(Locale.US, "%.2f", it)}",
+                        text = "Intake Price: R${String.format(Locale.US, "%.2f", it)}",
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
@@ -1284,7 +1250,7 @@ fun DeviceDetailsDialog(
                             Text("Sales Record", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text("Sold To: ${unit.customerName}", style = MaterialTheme.typography.bodySmall)
-                            Text("Selling Price: $${unit.salePrice}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                            Text("Selling Price: R${unit.salePrice}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
                             unit.saleDate?.let {
                                 Text("Sale Date: ${sdf.format(Date(it))}", style = MaterialTheme.typography.bodySmall)
                             }
@@ -1374,7 +1340,7 @@ fun DeviceDetailsDialog(
                                 value = salePriceInput,
                                 onValueChange = { salePriceInput = it },
                                 modifier = Modifier.fillMaxWidth().testTag("sell_price_input"),
-                                label = { Text("Selling Price ($)") },
+                                label = { Text("Selling Price (R)") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 singleLine = true
                             )
